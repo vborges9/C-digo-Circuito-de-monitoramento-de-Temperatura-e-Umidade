@@ -1,145 +1,163 @@
 #include <DHT.h>
 #include <DHT_U.h>
 
+#include <DHT.h>
+
+#include <DHT.h>
+#include <DHT_U.h>
+
 /*
- * Example for how to use SinricPro Temperaturesensor device:
- * - setup a temperature sensor device
- * - send temperature event to SinricPro server when temperature has changed
+* Exemplo de como usar o dispositivo SinricPro Temperaturesensor:
+ * - configurar um dispositivo sensor de temperatura
+ * - enviar evento de temperatura para o servidor SinricPro quando a temperatura mudou
  * 
  * DHT Sensor is connected to D5 on ESP8266 devices / GPIO5 on ESP32 devices
  *
- * DHT Library used in this example: https://github.com/markruys/arduino-DHT
+ * Biblioteca DHT usada neste exemplo: https://github.com/markruys/arduino-DHT
  * 
- * If you encounter any issues:
- * - check the readme.md at https://github.com/sinricpro/esp8266-esp32-sdk/blob/master/README.md
- * - ensure all dependent libraries are installed
+ * Se você encontrar algum problema:
+ * - Verifique o arquivo readme.md em https://github.com/sinricpro/esp8266-esp32-sdk/blob/master/README.md
+ * - certifique-se de que todas as bibliotecas dependentes estejam instaladas
  *   - see https://github.com/sinricpro/esp8266-esp32-sdk/blob/master/README.md#arduinoide
  *   - see https://github.com/sinricpro/esp8266-esp32-sdk/blob/master/README.md#dependencies
- * - open serial monitor and check whats happening
- * - check full user documentation at https://sinricpro.github.io/esp8266-esp32-sdk
- * - visit https://github.com/sinricpro/esp8266-esp32-sdk/issues and check for existing issues or open a new one
+ * - abra o monitor serial e verifique o que está acontecendo
+ * - verifique a documentação completa do usuário em https://sinricpro.github.io/esp8266-esp32-sdk
+ * - visite https://github.com/sinricpro/esp8266-esp32-sdk/issues e verifique se há problemas existentes ou abra um novo
  */
 
-// Uncomment the following line to enable serial debug output
+// Descomente a seguinte linha para habilitar a saída de depuração serial
 //#define ENABLE_DEBUG
 
 #ifdef ENABLE_DEBUG
-  #define DEBUG_ESP_PORT Serial
-  #define NODEBUG_WEBSOCKETS
-  #define NDEBUG
+       #define DEBUG_ESP_PORT Serial
+       #define NODEBUG_WEBSOCKETS
+       #define NDEBUG
 #endif 
 
+
 #include <Arduino.h>
-#if defined(ESP8266)
-  #include <ESP8266WiFi.h>
-#elif defined(ESP32) || defined(ARDUINO_ARCH_RP2040)
-  #include <WiFi.h>
+#ifdef ESP8266 
+       #include <ESP8266WiFi.h>
+#endif 
+#ifdef ESP32   
+       #include <WiFi.h>
 #endif
 
 #include "SinricPro.h"
 #include "SinricProTemperaturesensor.h"
 #include "DHT.h" // https://github.com/markruys/arduino-DHT
 
-#define WIFI_SSID         "wifi "    
-#define WIFI_PASS         "password"
-#define APP_KEY           "86bf04b9-cec8-4c51-a923-0c4ace63ab6e"      // Should look like "de0bxxxx-1x3x-4x3x-ax2x-5dabxxxxxxxx"
-#define APP_SECRET        "f2665d32-ad85-4dae-a232-b13d33cd5e2b-7c04652b-4fa7-472e-b59d-be634800586d"   // Should look like "5f36xxxx-x3x7-4x3x-xexe-e86724a9xxxx-4c4axxxx-3x3x-x5xe-x9x3-333d65xxxxxx"
-#define TEMP_SENSOR_ID    "66eb5c4746a89b75c2709922"    // Should look like "5dc1564130xxxxxxxxxxxxxx"
-#define BAUD_RATE         9600                // Change baudrate to your need (used for serial monitor)
-#define EVENT_WAIT_TIME   5000               // send event every 60 seconds
+#define WIFI_SSID         "Vinicius Borges "    
+#define WIFI_PASS         "vini3100"
+#define APP_KEY           "86bf04b9-cec8-4c51-a923-0c4ace63ab6e"      // Deve parecer com isso "de0bxxxx-1x3x-4x3x-ax2x-5dabxxxxxxxx"
+#define APP_SECRET        "f2665d32-ad85-4dae-a232-b13d33cd5e2b-7c04652b-4fa7-472e-b59d-be634800586d"   // Deve parecer com isso "5f36xxxx-x3x7-4x3x-xexe-e86724a9xxxx-4c4axxxx-3x3x-x5xe-x9x3-333d65xxxxxx"
+#define TEMP_SENSOR_ID    "66eb5c4746a89b75c2709922"    // Deve parecer com isso "5dc1564130xxxxxxxxxxxxxx"
+#define BAUD_RATE         9600                // Altere a taxa de transmissão de acordo com sua necessidade (usado para monitor serial)
+#define EVENT_WAIT_TIME   60000               // send event every 60 seconds
 
-#if defined(ESP8266)
+#ifdef ESP8266
        #define DHT_PIN    D5
-#elif defined(ESP32) || defined(ARDUINO_ARCH_RP2040)
-       #define DHT_PIN    5
+#endif,
+#ifdef ESP32
+       #define DHT_PIN    5z 
 #endif
-#include <DHT.h>
-#define DHTPIN D5
- 
-#define DHTTYPE DHT11 // DHT 11
-DHT dht(DHTPIN, DHTTYPE);
- 
 
-float temperature;                            // actual temperature
-float humidity;                               // actual humidity
-float lastTemperature;                        // last known temperature (for compare)
-float lastHumidity;                           // last known humidity (for compare)
-unsigned long lastEvent = (-EVENT_WAIT_TIME); // last time event has been sent
+DHT dht;                                      // DHT sensor
+
+bool deviceIsOn;                              // Estado ligado/desligado do sensor de temperatura
+float temperature;                            // temperatura atual
+float humidity;                               // Umidade atual
+float lastTemperature;                        // última temperatura conhecida (para comparação)
+float lastHumidity;                           // última umidade conhecida (para comparação)
+unsigned long lastEvent = (-EVENT_WAIT_TIME); // última vez que o evento foi enviado
+
+/* bool onPowerState(String deviceId, bool &state)
+ *
+ * Retorno de chamada para solicitação setPowerState
+ * parâmetros
+ * String deviceId (r)
+ * contém deviceId (útil se este retorno de chamada for usado por vários dispositivos)
+ * bool &state (r/w)
+ * contém o estado solicitado (true:on / false:off)
+ * deve retornar o novo estado
+ *
+ * Retorna
+ * true se a solicitação deve ser marcada como tratada corretamente / false se não
+ */
+bool onPowerState(const String &deviceId, bool &state) {
+  Serial.printf("Temperaturesensor está %s (via SinricPro) \r\n", state?"Ligado":"Desligado");
+  deviceIsOn = state; // liga/desliga o sensor de temperatura
+  return true; // pedido tratado corretamente
+}
 
 /* handleTemperatatureSensor()
- * - Checks if Temperaturesensor is turned on
- * - Checks if time since last event > EVENT_WAIT_TIME to prevent sending too much events
- * - Get actual temperature and humidity and check if these values are valid
- * - Compares actual temperature and humidity to last known temperature and humidity
- * - Send event to SinricPro Server if temperature or humidity changed
+ * - Verifica se o sensor de temperatura está ligado
+ * - Verifica se o tempo desde o último evento > EVENT_WAIT_TIME para evitar o envio de muitos eventos
+ * - Obtenha temperatura e umidade reais e verifique se esses valores são válidos
+ * - Compara a temperatura e a umidade reais com a última temperatura e umidade conhecidas
+ * - Enviar evento para o SinricPro Server se a temperatura ou a umidade forem alteradas
  */
 void handleTemperaturesensor() {
+  if (deviceIsOn == false) return; // dispositivo está desligado... não faça nada
+
   unsigned long actualMillis = millis();
-  if (actualMillis - lastEvent < EVENT_WAIT_TIME) return; //only check every EVENT_WAIT_TIME milliseconds
+  if (actualMillis - lastEvent < EVENT_WAIT_TIME) return; //verifique apenas a cada milissegundos EVENT_WAIT_TIME 
 
-  temperature = dht.readTemperature();          // get actual temperature in °C
-//  temperature = dht.readTemperature() * 1.8f + 32;  // get actual temperature in °F
-  humidity = dht.readHumidity();                // get actual humidity
+  temperature = dht.getTemperature();          // obtem  temperatura atual em °C
 
-  if (isnan(temperature) || isnan(humidity)) { // reading failed... 
-    Serial.printf("DHT reading failed!\r\n");  // print error message
-    return;                                    // try again next time
+  humidity = dht.getHumidity();                // obtem umidade atual
+
+  if (isnan(temperature) || isnan(humidity)) { // se a leitura falhou...
+    Serial.printf("DHT apresentou falha na leitura!\r\n");  // Imprime mensagem de erro 
+    return;                                    // tente novamente da próxima vez
   } 
 
-  if (temperature == lastTemperature || humidity == lastHumidity) return; // if no values changed do nothing...
+  if (temperature == lastTemperature || humidity == lastHumidity) return; // se nenhum valor for alterado não faça nada...
 
-  SinricProTemperaturesensor &mySensor = SinricPro[TEMP_SENSOR_ID];  // get temperaturesensor device
-  bool success = mySensor.sendTemperatureEvent(temperature, humidity); // send event
-  if (success) {  // if event was sent successfuly, print temperature and humidity to serial
-    Serial.printf("Temperature: %2.1f Celsius\tHumidity: %2.1f%%\r\n", temperature, humidity);
-  } else {  // if sending event failed, print error message
-    Serial.printf("Something went wrong...could not send Event to server!\r\n");
+  SinricProTemperaturesensor &mySensor = SinricPro[TEMP_SENSOR_ID];  // obtem dispositivo temperaturesensor
+  bool success = mySensor.sendTemperatureEvent(temperature, humidity); // envia evento
+  if (success) {  // se o evento foi enviado com sucesso, imprima temperatura e umidade para serial
+    Serial.printf("Temperatura: %2.1f Celsius\tUmidade: %2.1f%%\r\n", temperature, humidity);
+  } else {  // se o envio do evento falhou, imprime a mensagem de erro
+    Serial.printf("Algo deu errado... não foi possível enviar o evento para o servidor!\r\n");
   }
 
-  lastTemperature = temperature;  // save actual temperature for next compare
-  lastHumidity = humidity;        // save actual humidity for next compare
-  lastEvent = actualMillis;       // save actual time for next compare
+  lastTemperature = temperature;  // salva a temperatura real para a próxima comparação
+  lastHumidity = humidity;        // salva a umidade real para a próxima comparação
+  lastEvent = actualMillis;       // salva o tempo real para a próxima comparação
 }
 
 
-// setup function for WiFi connection
+//função de configuração para conexão WiFi
 void setupWiFi() {
-  Serial.printf("\r\n[Wifi]: Connecting");
-
-  #if defined(ESP8266)
-    WiFi.setSleepMode(WIFI_NONE_SLEEP); 
-    WiFi.setAutoReconnect(true);
-  #elif defined(ESP32)
-    WiFi.setSleep(false); 
-    WiFi.setAutoReconnect(true);
-  #endif
-
-  WiFi.begin(WIFI_SSID, WIFI_PASS); 
+  Serial.printf("\r\n[Wifi]: Conectando");
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   while (WiFi.status() != WL_CONNECTED) {
     Serial.printf(".");
     delay(250);
   }
   IPAddress localIP = WiFi.localIP();
-  Serial.printf("connected!\r\n[WiFi]: IP-Address is %d.%d.%d.%d\r\n", localIP[0], localIP[1], localIP[2], localIP[3]);
+  Serial.printf("conectado!\r\n[WiFi]: O endereço IP é: %d.%d.%d.%d\r\n", localIP[0], localIP[1], localIP[2], localIP[3]);
 }
 
-// setup function for SinricPro
+//função de configuração para SinricPro
 void setupSinricPro() {
-  // add device to SinricPro
+  // adiciona dispositivo ao SinricPro
   SinricProTemperaturesensor &mySensor = SinricPro[TEMP_SENSOR_ID];
+  mySensor.onPowerState(onPowerState);
 
   // setup SinricPro
-  SinricPro.onConnected([](){ Serial.printf("Connected to SinricPro\r\n"); }); 
-  SinricPro.onDisconnected([](){ Serial.printf("Disconnected from SinricPro\r\n"); });
-  //SinricPro.restoreDeviceStates(true); // Uncomment to restore the last known state from the server.
-  SinricPro.begin(APP_KEY, APP_SECRET);  
+  SinricPro.onConnected([](){ Serial.printf("Conectado ao SinricPro\r\n"); }); 
+  SinricPro.onDisconnected([](){ Serial.printf("Desconectado do SinricPro\r\n"); });
+  SinricPro.begin(APP_KEY, APP_SECRET);
+  SinricPro.restoreDeviceStates(true); // obtém o último deviceState conhecido do servidor (o dispositivo está ligado?)
 }
 
-// main setup function
+// função de configuração principal
 void setup() {
   Serial.begin(BAUD_RATE); Serial.printf("\r\n\r\n");
-  //dht.setup(DHT_PIN);
+  dht.setup(DHT_PIN);
 
   setupWiFi();
   setupSinricPro();
